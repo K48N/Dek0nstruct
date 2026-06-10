@@ -1,0 +1,26 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "--verbose --tb=short"
+markers = [
+    "unit: marks tests as unit tests",
+    "integration: marks tests as integration tests",
+    "ui: marks tests as UI tests",
+    "slow: marks tests as slow running",
+]
+
+[coverage.run]
+branch = true
+source = ["core", "models", "services", "ui", "utils"]
+
+[coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "pass",
+    "raise ImportError",
+]
+ignore_errors = true
+omit = ["tests/*", "setup.py"]
