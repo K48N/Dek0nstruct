@@ -8,15 +8,23 @@ if os.path.isdir(_VLC_DIR):
     os.add_dll_directory(_VLC_DIR)
     os.environ.setdefault("PYTHON_VLC_MODULE_PATH", _VLC_DIR)
 
-import vlc
+import vlc  # noqa: E402
 
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel,
-                              QPushButton, QSlider, QSizePolicy, QFrame,
-                              QProgressBar)
-from PyQt5.QtCore import Qt, pyqtSignal, QTimer
-from PyQt5.QtGui import QFont
+from PyQt5.QtWidgets import (  # noqa: E402
+    QFrame,
+    QHBoxLayout,
+    QLabel,
+    QProgressBar,
+    QPushButton,
+    QSizePolicy,
+    QSlider,
+    QVBoxLayout,
+    QWidget,
+)
+from PyQt5.QtCore import QTimer, Qt, pyqtSignal  # noqa: E402
+from PyQt5.QtGui import QFont  # noqa: E402
 
-from ui.themes.dark_theme import PortfolioTheme
+from ui.themes.dark_theme import PortfolioTheme  # noqa: E402
 
 
 class _LoadingOverlay(QWidget):

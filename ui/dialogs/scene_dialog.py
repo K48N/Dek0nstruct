@@ -1,9 +1,21 @@
 """Auto-detect segments via scene changes or silence breaks."""
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-                              QPushButton, QSlider, QSpinBox, QGroupBox,
-                              QRadioButton, QButtonGroup, QMessageBox, QProgressBar)
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from typing import List
+
+from PyQt5.QtCore import QThread, Qt, pyqtSignal
+from PyQt5.QtWidgets import (
+    QButtonGroup,
+    QDialog,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QProgressBar,
+    QPushButton,
+    QRadioButton,
+    QSlider,
+    QSpinBox,
+    QVBoxLayout,
+)
 
 from core.scene_detector import SceneDetector
 from core.segment import Segment

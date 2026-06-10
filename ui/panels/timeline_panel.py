@@ -1,10 +1,9 @@
 """
 Timeline panel with waveform display and segment editing
 """
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
-                            QPushButton, QScrollArea)
-from PyQt5.QtCore import Qt, QRect, QPoint, pyqtSignal, QTimer
-from PyQt5.QtGui import QPainter, QColor, QPen, QBrush, QPixmap, QCursor
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel
+from PyQt5.QtCore import Qt, QRect, pyqtSignal
+from PyQt5.QtGui import QPainter, QColor, QPen, QPixmap, QCursor
 from typing import List, Optional
 import os
 
@@ -193,7 +192,6 @@ class TimelineWidget(QWidget):
             return
         
         x = event.pos().x()
-        time = self.x_to_time(x)
         
         # Check if clicking on a segment edge
         for i, segment in enumerate(self.segments):

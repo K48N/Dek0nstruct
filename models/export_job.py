@@ -3,6 +3,7 @@ from enum import Enum
 from typing import Optional, Any
 from datetime import datetime
 
+
 class JobStatus(Enum):
     """Possible states for an export job."""
     QUEUED = "queued"
@@ -10,6 +11,7 @@ class JobStatus(Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+
 
 class JobType(Enum):
     """Types of background jobs supported by the application."""
@@ -20,6 +22,7 @@ class JobType(Enum):
     AUDIO_ENHANCEMENT = "audio_enhancement"
     CACHE_GENERATION = "cache_generation"
     AUTO_SUMMARIZE = "auto_summarize"
+
 
 @dataclass
 class ExportJob:

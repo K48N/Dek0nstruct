@@ -2,10 +2,19 @@
 from pathlib import Path
 from typing import List, Optional
 
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel,
-                              QPushButton, QListWidget, QFileDialog, QMessageBox,
-                              QProgressBar, QListWidgetItem)
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
+from PyQt5.QtCore import QThread, Qt, pyqtSignal
+from PyQt5.QtWidgets import (
+    QDialog,
+    QFileDialog,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QMessageBox,
+    QPushButton,
+    QProgressBar,
+    QVBoxLayout,
+)
 
 from core.batch_processor import BatchProcessor
 from core.segment import Segment
@@ -43,9 +52,13 @@ class BatchDialog(QDialog):
         layout = QVBoxLayout(self)
         layout.setSpacing(10)
         title = QLabel("Batch Process Multiple Videos")
-        title.setStyleSheet(f"font-size:18px;font-weight:700;color:{PortfolioTheme.WHITE};padding:10px;")
+        title.setStyleSheet(
+            f"font-size:18px;font-weight:700;color:{PortfolioTheme.WHITE};padding:10px;"
+        )
         layout.addWidget(title)
-        info = QLabel(f"Apply current {len(self.segments)} segment(s) to multiple videos.")
+        info = QLabel(
+            f"Apply current {len(self.segments)} segment(s) to multiple videos."
+        )
         info.setStyleSheet(f"color:{PortfolioTheme.GRAY_LIGHTER};padding:0 10px 8px;")
         layout.addWidget(info)
         self._list = QListWidget()
@@ -57,8 +70,14 @@ class BatchDialog(QDialog):
         """)
         layout.addWidget(self._list)
         row = QHBoxLayout()
-        for label, slot in [("Add Videos\u2026", self._add), ("Remove Selected", self._remove), ("Clear", self._clear)]:
-            b = QPushButton(label); b.clicked.connect(slot); row.addWidget(b)
+        for label, slot in [
+            ("Add Videos\u2026", self._add),
+            ("Remove Selected", self._remove),
+            ("Clear", self._clear),
+        ]:
+            button = QPushButton(label)
+            button.clicked.connect(slot)
+            row.addWidget(button)
         row.addStretch()
         layout.addLayout(row)
         self._progress = QProgressBar()
@@ -67,7 +86,8 @@ class BatchDialog(QDialog):
         self._status = QLabel("")
         self._status.setStyleSheet(f"color:{PortfolioTheme.GRAY_LIGHTER};font-size:11px;")
         layout.addWidget(self._status)
-        btns = QHBoxLayout(); btns.addStretch()
+        btns = QHBoxLayout()
+        btns.addStretch()
         self._run_btn = QPushButton("Start Batch Processing")
         self._run_btn.setEnabled(False)
         self._run_btn.setStyleSheet(f"""
@@ -78,7 +98,9 @@ class BatchDialog(QDialog):
         """)
         self._run_btn.clicked.connect(self._start)
         btns.addWidget(self._run_btn)
-        close_btn = QPushButton("Close"); close_btn.clicked.connect(self.reject); btns.addWidget(close_btn)
+        close_btn = QPushButton("Close")
+        close_btn.clicked.connect(self.reject)
+        btns.addWidget(close_btn)
         layout.addLayout(btns)
         self.setStyleSheet(f"""
             QDialog {{background:{PortfolioTheme.PRIMARY};}}
@@ -89,39 +111,59 @@ class BatchDialog(QDialog):
         """)
 
     def _add(self):
-        files, _ = QFileDialog.getOpenFileNames(self, "Select Videos", "",
-            "Video Files (*.mp4 *.mkv *.avi *.mov *.wmv);;All Files (*)")
+        files, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Select Videos",
+            "",
+            "Video Files (*.mp4 *.mkv *.avi *.mov *.wmv);;All Files (*)",
+        )
         for f in files:
-            item = QListWidgetItem(Path(f).name); item.setData(Qt.UserRole, f); self._list.addItem(item)
+            item = QListWidgetItem(Path(f).name)
+            item.setData(Qt.UserRole, f)
+            self._list.addItem(item)
         self._run_btn.setEnabled(self._list.count() > 0)
 
     def _remove(self):
-        for item in self._list.selectedItems(): self._list.takeItem(self._list.row(item))
+        for item in self._list.selectedItems():
+            self._list.takeItem(self._list.row(item))
         self._run_btn.setEnabled(self._list.count() > 0)
 
     def _clear(self):
-        self._list.clear(); self._run_btn.setEnabled(False)
+        self._list.clear()
+        self._run_btn.setEnabled(False)
 
     def _start(self):
         out_dir = QFileDialog.getExistingDirectory(self, "Select Output Directory")
-        if not out_dir: return
+        if not out_dir:
+            return
         parent = self.parent()
-        options = parent.control_panel.get_processing_options() if hasattr(parent, "control_panel") else ProcessingOptions()
+        if hasattr(parent, "control_panel"):
+            options = parent.control_panel.get_processing_options()
+        else:
+            options = ProcessingOptions()
         self.processor.clear_jobs()
         for i in range(self._list.count()):
-            item = self._list.item(i); self.processor.add_job(item.data(Qt.UserRole), self.segments, out_dir)
+            item = self._list.item(i)
+            self.processor.add_job(item.data(Qt.UserRole), self.segments, out_dir)
         self._thread = _BatchThread(self.processor, options)
         self._thread.progress.connect(self._on_progress)
         self._thread.finished.connect(self._on_done)
-        self._run_btn.setEnabled(False); self._progress.setVisible(True); self._thread.start()
+        self._run_btn.setEnabled(False)
+        self._progress.setVisible(True)
+        self._thread.start()
 
     def _on_progress(self, cur, total, msg):
-        self._progress.setMaximum(total); self._progress.setValue(cur); self._status.setText(msg)
+        self._progress.setMaximum(total)
+        self._progress.setValue(cur)
+        self._status.setText(msg)
 
     def _on_done(self, _jobs):
-        self._progress.setVisible(False); self._run_btn.setEnabled(True)
+        self._progress.setVisible(False)
+        self._run_btn.setEnabled(True)
         s = self.processor.get_summary()
-        QMessageBox.information(self, "Batch Complete",
-            f"Done\n\nSucceeded: {s['complete']}\nFailed: {s['failed']}\nTotal: {s['total']}")
+        QMessageBox.information(
+            self,
+            "Batch Complete",
+            f"Done\n\nSucceeded: {s['complete']}\nFailed: {s['failed']}\nTotal: {s['total']}",
+        )
         self.accept()
-    

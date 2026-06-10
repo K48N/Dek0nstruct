@@ -59,8 +59,11 @@ def _check_recovery():
         if reply == QMessageBox.Yes:
             files = mgr.get_recovery_files()
             names = "\n".join(f["name"] for f in files[:5])
-            QMessageBox.information(None, "Recovery",
-                f"Use File to open them.\n\n{names}")
+            QMessageBox.information(
+                None,
+                "Recovery",
+                f"Use File to open them.\n\n{names}",
+            )
         else:
             mgr.clear_recovery_files()
     except Exception as e:

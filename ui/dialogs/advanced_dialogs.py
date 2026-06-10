@@ -1,11 +1,30 @@
 """
 All Phase 5 dialogs in one file
 """
-from PyQt5.QtWidgets import *
-from PyQt5.QtCore import Qt, pyqtSignal, QTime
+from PyQt5.QtCore import QTime, Qt, pyqtSignal
 from PyQt5.QtGui import QColor
+from PyQt5.QtWidgets import (
+    QButtonGroup,
+    QCheckBox,
+    QColorDialog,
+    QDialog,
+    QGridLayout,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QMessageBox,
+    QStackedWidget,
+    QSpinBox,
+    QTableWidget,
+    QTableWidgetItem,
+    QTimeEdit,
+    QVBoxLayout,
+    QWidget,
+    QPushButton,
+    QRadioButton,
+)
+
 from ui.themes.dark_theme import PortfolioTheme
-from typing import Optional
 
 
 class VideoInfoDialog(QDialog):

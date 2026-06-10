@@ -1,8 +1,10 @@
-from typing import Dict, Type
 import logging
+from typing import Type
+
 from .base_service import Service
 
 logger = logging.getLogger(__name__)
+
 
 class ServiceRegistry:
     """Manages all services in the application."""
