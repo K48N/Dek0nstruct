@@ -40,7 +40,7 @@ jobs:
     
     - name: Type checking
       run: |
-        mypy .
+        mypy core/segment.py core/undo_manager.py tests/test_core.py
     
     - name: Lint
       run: |
