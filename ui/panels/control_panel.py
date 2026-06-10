@@ -1,9 +1,9 @@
 """
 Control panel with export options and settings
 """
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, 
+from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QLabel, 
                             QPushButton, QComboBox, QCheckBox, QGroupBox,
-                            QSpinBox, QFileDialog, QProgressBar)
+                            QFileDialog, QProgressBar, QSizePolicy)
 from PyQt5.QtCore import Qt, pyqtSignal
 
 from ui.themes.dark_theme import PortfolioTheme
@@ -12,13 +12,27 @@ from core.video_engine import ProcessingOptions
 
 class ControlPanel(QWidget):
     """Left control panel with options"""
-    
+
     export_requested = pyqtSignal(str, ProcessingOptions)  # output_dir, options
+    import_requested = pyqtSignal()
+    load_project_requested = pyqtSignal()
+    help_requested = pyqtSignal()
     
     def __init__(self):
         super().__init__()
-        self.setMinimumWidth(300)
-        self.setMaximumWidth(350)
+        self.setMinimumWidth(260)
+        self.setMaximumWidth(420)
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Expanding)
+
+        # Advanced options are configured from the top menu, not the left stack.
+        self._audio_channels = None
+        self._mp3_quality = 5
+        self._use_gpu = True
+        self._codec_copy = True
+        self._parallel_processing = True
+        self._max_workers = 4
+        self._compatibility_mode = True
+        self._export_both_formats = False
         self._setup_ui()
     
     def _setup_ui(self):
@@ -27,8 +41,57 @@ class ControlPanel(QWidget):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(15)
         
+        # File buttons
+        import_btn = QPushButton("Import Video")
+        import_btn.clicked.connect(self.import_requested)
+        import_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {PortfolioTheme.SECONDARY};
+                color: {PortfolioTheme.WHITE};
+                border: 1px solid {PortfolioTheme.BORDER_LIGHT};
+                border-radius: 6px;
+                padding: 10px;
+                font-size: 13px;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{ background: {PortfolioTheme.TERTIARY}; }}
+        """)
+        layout.addWidget(import_btn)
+
+        load_btn = QPushButton("Load Project")
+        load_btn.clicked.connect(self.load_project_requested)
+        load_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {PortfolioTheme.SECONDARY};
+                color: {PortfolioTheme.WHITE};
+                border: 1px solid {PortfolioTheme.BORDER_LIGHT};
+                border-radius: 6px;
+                padding: 10px;
+                font-size: 13px;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{ background: {PortfolioTheme.TERTIARY}; }}
+        """)
+        layout.addWidget(load_btn)
+
+        help_btn = QPushButton("Help")
+        help_btn.clicked.connect(self.help_requested)
+        help_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: {PortfolioTheme.SECONDARY};
+                color: {PortfolioTheme.WHITE};
+                border: 1px solid {PortfolioTheme.BORDER_LIGHT};
+                border-radius: 6px;
+                padding: 10px;
+                font-size: 13px;
+                font-weight: 600;
+            }}
+            QPushButton:hover {{ background: {PortfolioTheme.TERTIARY}; }}
+        """)
+        layout.addWidget(help_btn)
+
         # Title
-        title = QLabel("Export Settings")
+        title = QLabel("Export")
         title.setStyleSheet(f"""
             font-size: 18px;
             font-weight: 700;
@@ -36,108 +99,6 @@ class ControlPanel(QWidget):
             padding-bottom: 10px;
         """)
         layout.addWidget(title)
-        
-        # Audio Options Group
-        audio_group = self._create_group("Audio Options")
-        audio_layout = QVBoxLayout()
-        
-        audio_layout.addWidget(QLabel("Audio Channels:"))
-        self.audio_combo = QComboBox()
-        self.audio_combo.addItems([
-            "Keep Original (Fastest)",
-            "Mono (Smaller Size)", 
-            "Stereo (Best Quality)"
-        ])
-        self.audio_combo.setStyleSheet(self._combo_style())
-        audio_layout.addWidget(self.audio_combo)
-        
-        audio_layout.addSpacing(10)
-        audio_layout.addWidget(QLabel("MP3 Quality:"))
-        self.mp3_quality_combo = QComboBox()
-        self.mp3_quality_combo.addItems([
-            "Best Quality (Largest)",
-            "Balanced", 
-            "Lower Quality (Smallest)"
-        ])
-        self.mp3_quality_combo.setCurrentIndex(1)  # Default to Balanced
-        self.mp3_quality_combo.setStyleSheet(self._combo_style())
-        audio_layout.addWidget(self.mp3_quality_combo)
-        
-        # MP3 quality descriptor
-        mp3_desc = QLabel("0 = Best quality (largest)\n5 = Balanced\n9 = Smallest (lower quality)")
-        mp3_desc.setStyleSheet(f"""
-            color: {PortfolioTheme.GRAY_LIGHTER};
-            font-size: 10px;
-            padding: 5px;
-        """)
-        audio_layout.addWidget(mp3_desc)
-        
-        audio_group.setLayout(audio_layout)
-        layout.addWidget(audio_group)
-        
-        # Video Options Group
-        video_group = self._create_group("Video Options")
-        video_layout = QVBoxLayout()
-        
-        self.codec_copy = QCheckBox("Fast Mode (Copy Codec)")
-        self.codec_copy.setChecked(True)
-        self.codec_copy.setStyleSheet(self._checkbox_style())
-        video_layout.addWidget(self.codec_copy)
-        
-        codec_desc = QLabel("Fast but less precise cuts (±1 frame)")
-        codec_desc.setStyleSheet(f"""
-            color: {PortfolioTheme.GRAY_LIGHTER};
-            font-size: 10px;
-            padding-left: 25px;
-        """)
-        video_layout.addWidget(codec_desc)
-        
-        video_layout.addSpacing(5)
-        
-        self.use_gpu = QCheckBox("Use GPU Acceleration")
-        self.use_gpu.setChecked(True)
-        self.use_gpu.setStyleSheet(self._checkbox_style())
-        video_layout.addWidget(self.use_gpu)
-        
-        gpu_desc = QLabel("2-5x faster if available")
-        gpu_desc.setStyleSheet(f"""
-            color: {PortfolioTheme.GRAY_LIGHTER};
-            font-size: 10px;
-            padding-left: 25px;
-        """)
-        video_layout.addWidget(gpu_desc)
-        
-        video_group.setLayout(video_layout)
-        layout.addWidget(video_group)
-        
-        # Performance Options Group
-        perf_group = self._create_group("Performance")
-        perf_layout = QVBoxLayout()
-        
-        self.parallel_processing = QCheckBox("Parallel Processing")
-        self.parallel_processing.setChecked(True)
-        self.parallel_processing.setStyleSheet(self._checkbox_style())
-        perf_layout.addWidget(self.parallel_processing)
-        
-        perf_layout.addSpacing(10)
-        perf_layout.addWidget(QLabel("Worker Threads:"))
-        self.max_workers = QSpinBox()
-        self.max_workers.setRange(1, 16)
-        self.max_workers.setValue(4)
-        self.max_workers.setStyleSheet(self._spinbox_style())
-        perf_layout.addWidget(self.max_workers)
-        
-        # Worker threads descriptor
-        workers_desc = QLabel("Higher = faster but more CPU/memory.\nRecommended: CPU cores - 2")
-        workers_desc.setStyleSheet(f"""
-            color: {PortfolioTheme.GRAY_LIGHTER};
-            font-size: 10px;
-            padding: 5px;
-        """)
-        perf_layout.addWidget(workers_desc)
-        
-        perf_group.setLayout(perf_layout)
-        layout.addWidget(perf_group)
         
         # Export Options Group
         export_group = self._create_group("Export Formats")
@@ -168,28 +129,21 @@ class ControlPanel(QWidget):
         export_layout.addWidget(QLabel("Audio Format:"))
         self.audio_format_combo = QComboBox()
         self.audio_format_combo.addItems(["mp3", "wav", "aac", "flac", "ogg"])
+        self.audio_format_combo.setCurrentText("mp3")
         self.audio_format_combo.setStyleSheet(self._combo_style())
         export_layout.addWidget(self.audio_format_combo)
         
-        export_layout.addSpacing(10)
-        
-        # Quick option
-        self.export_both = QCheckBox("Export Both Formats")
-        self.export_both.setChecked(False)
-        self.export_both.setStyleSheet(self._checkbox_style())
-        self.export_both.stateChanged.connect(self._on_export_both_changed)
-        export_layout.addWidget(self.export_both)
-        
-        both_desc = QLabel("Creates both video and audio files")
-        both_desc.setStyleSheet(f"""
-            color: {PortfolioTheme.GRAY_LIGHTER};
-            font-size: 10px;
-            padding-left: 25px;
-        """)
-        export_layout.addWidget(both_desc)
-        
         export_group.setLayout(export_layout)
         layout.addWidget(export_group)
+
+        hint = QLabel("Advanced export and diagnostics settings are in the top Export and Tools menus.")
+        hint.setWordWrap(True)
+        hint.setStyleSheet(f"""
+            color: {PortfolioTheme.GRAY_LIGHTER};
+            font-size: 11px;
+            padding: 4px 8px;
+        """)
+        layout.addWidget(hint)
         
         layout.addStretch()
         
@@ -257,12 +211,6 @@ class ControlPanel(QWidget):
         """Handle audio export checkbox change"""
         self.audio_format_combo.setEnabled(state == Qt.Checked)
     
-    def _on_export_both_changed(self, state):
-        """Handle export both checkbox change"""
-        if state == Qt.Checked:
-            self.export_video.setChecked(True)
-            self.export_audio.setChecked(True)
-    
     def _create_group(self, title: str) -> QGroupBox:
         """Create styled group box"""
         group = QGroupBox(title)
@@ -308,21 +256,6 @@ class ControlPanel(QWidget):
             }}
         """
     
-    def _spinbox_style(self) -> str:
-        """Spinbox style"""
-        return f"""
-            QSpinBox {{
-                background: {PortfolioTheme.TERTIARY};
-                color: {PortfolioTheme.WHITE};
-                border: 1px solid {PortfolioTheme.BORDER};
-                border-radius: 4px;
-                padding: 8px;
-            }}
-            QSpinBox:hover {{
-                border: 1px solid {PortfolioTheme.ACCENT};
-            }}
-        """
-    
     def _checkbox_style(self) -> str:
         """Checkbox style"""
         return f"""
@@ -342,7 +275,7 @@ class ControlPanel(QWidget):
                 border: 1px solid {PortfolioTheme.ACCENT};
             }}
         """
-    
+
     def _on_export_clicked(self):
         """Handle export button click"""
         # Select output directory
@@ -361,10 +294,49 @@ class ControlPanel(QWidget):
         
         # Emit signal
         self.export_requested.emit(output_dir, options)
+
+    def trigger_export(self):
+        """Public API for menu actions to open export flow."""
+        self._on_export_clicked()
     
     def set_export_enabled(self, enabled: bool):
         """Enable/disable export button"""
         self.export_button.setEnabled(enabled)
+
+    def set_advanced_settings(
+        self,
+        *,
+        audio_channels=None,
+        mp3_quality=5,
+        use_gpu=True,
+        codec_copy=True,
+        parallel_processing=True,
+        max_workers=4,
+        compatibility_mode=True,
+        export_both_formats=False,
+    ):
+        """Update advanced export settings from menu controls."""
+        self._audio_channels = audio_channels
+        self._mp3_quality = int(mp3_quality)
+        self._use_gpu = bool(use_gpu)
+        self._codec_copy = bool(codec_copy)
+        self._parallel_processing = bool(parallel_processing)
+        self._max_workers = int(max_workers)
+        self._compatibility_mode = bool(compatibility_mode)
+        self._export_both_formats = bool(export_both_formats)
+
+    def get_advanced_settings(self) -> dict:
+        """Return current advanced export settings for menu sync/state."""
+        return {
+            "audio_channels": self._audio_channels,
+            "mp3_quality": self._mp3_quality,
+            "use_gpu": self._use_gpu,
+            "codec_copy": self._codec_copy,
+            "parallel_processing": self._parallel_processing,
+            "max_workers": self._max_workers,
+            "compatibility_mode": self._compatibility_mode,
+            "export_both_formats": self._export_both_formats,
+        }
     
     def show_progress(self, current: int, total: int, message: str = ""):
         """Show export progress"""
@@ -380,19 +352,15 @@ class ControlPanel(QWidget):
     
     def get_processing_options(self) -> ProcessingOptions:
         """Get current processing options"""
-        audio_map = {
-            0: None,
-            1: 'mono',
-            2: 'stereo'
-        }
-        
         return ProcessingOptions(
-            audio_channels=audio_map[self.audio_combo.currentIndex()],
-            use_gpu=self.use_gpu.isChecked(),
-            codec_copy=self.codec_copy.isChecked(),
-            mp3_quality=self.mp3_quality.value(),
+            audio_channels=self._audio_channels,
+            use_gpu=self._use_gpu,
+            codec_copy=self._codec_copy,
+            mp3_quality=self._mp3_quality,
             output_format=self.video_format_combo.currentText(),
-            parallel_processing=self.parallel_processing.isChecked(),
-            max_workers=self.max_workers.value(),
-            export_both_formats=self.export_both.isChecked()
+            audio_output_format=self.audio_format_combo.currentText(),
+            parallel_processing=self._parallel_processing,
+            max_workers=self._max_workers,
+            export_both_formats=self._export_both_formats,
+            compatibility_mode=self._compatibility_mode,
         )

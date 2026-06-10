@@ -1,5 +1,6 @@
 """Dek0nstruct — entry point."""
 import sys
+import os
 import logging
 import traceback
 from pathlib import Path
@@ -13,14 +14,23 @@ from ui.main_app import VideoEditorApp
 logger = logging.getLogger(__name__)
 
 
+def _is_debug_enabled() -> bool:
+    env_flag = str(os.getenv("DEK0NSTRUCT_DEBUG", "")).strip().lower()
+    if env_flag in {"1", "true", "yes", "on"}:
+        return True
+    return bool(config.get("app", "debug_mode"))
+
+
 def _setup_logging():
     log_file = Path(config.get("export", "temp_directory")) / "dek0nstruct.log"
     log_file.parent.mkdir(parents=True, exist_ok=True)
+    level = logging.DEBUG if _is_debug_enabled() else logging.INFO
     logging.basicConfig(
-        level=logging.INFO,
+        level=level,
         format="%(asctime)s %(name)s %(levelname)s: %(message)s",
         handlers=[logging.FileHandler(str(log_file)), logging.StreamHandler()],
     )
+    logger.info("Debug mode: %s", "ON" if level == logging.DEBUG else "OFF")
 
 
 def _init_services():

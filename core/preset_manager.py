@@ -80,6 +80,8 @@ class PresetManager:
                 'codec_copy': options.codec_copy,
                 'mp3_quality': options.mp3_quality,
                 'output_format': options.output_format,
+                'audio_output_format': options.audio_output_format,
+                'compatibility_mode': options.compatibility_mode,
                 'parallel_processing': options.parallel_processing,
                 'max_workers': options.max_workers
             }
@@ -113,6 +115,8 @@ class PresetManager:
                 codec_copy=data.get('codec_copy', True),
                 mp3_quality=data.get('mp3_quality', 2),
                 output_format=data.get('output_format', 'mp4'),
+                audio_output_format=data.get('audio_output_format', 'mp3'),
+                compatibility_mode=data.get('compatibility_mode', True),
                 parallel_processing=data.get('parallel_processing', True),
                 max_workers=data.get('max_workers', 4)
             )
@@ -168,6 +172,8 @@ class PresetManager:
                             'codec_copy': options.codec_copy,
                             'mp3_quality': options.mp3_quality,
                             'output_format': options.output_format,
+                            'audio_output_format': options.audio_output_format,
+                            'compatibility_mode': options.compatibility_mode,
                             'parallel_processing': options.parallel_processing,
                             'max_workers': options.max_workers
                         }
@@ -193,6 +199,8 @@ class PresetManager:
                     codec_copy=data.get('codec_copy', True),
                     mp3_quality=data.get('mp3_quality', 2),
                     output_format=data.get('output_format', 'mp4'),
+                    audio_output_format=data.get('audio_output_format', 'mp3'),
+                    compatibility_mode=data.get('compatibility_mode', True),
                     parallel_processing=data.get('parallel_processing', True),
                     max_workers=data.get('max_workers', 4)
                 )

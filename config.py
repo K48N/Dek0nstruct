@@ -13,6 +13,9 @@ APP_CONFIG_DIR = Path(APP_DATA) / "Dek0nstruct"
 CONFIG_FILE = APP_CONFIG_DIR / "config.json"
 
 DEFAULT_CONFIG: Dict[str, Any] = {
+    "app": {
+        "debug_mode": False,
+    },
     "cache": {
         "max_size_gb": 10,
         "max_age_days": 30,

@@ -16,9 +16,11 @@ class ProcessingOptions:
     """Options for video processing"""
     # Basic options
     output_format: str = 'mp4'
+    audio_output_format: str = 'mp3'
     parallel_processing: bool = True
     max_workers: int = 4
     export_both_formats: bool = True  # Export both video and audio if segment requests one
+    compatibility_mode: bool = True
     
     # Performance options
     use_gpu: bool = True
@@ -269,19 +271,23 @@ class VideoEngine:
             
             # Export audio if requested OR if export_both_formats is enabled
             if segment.export_audio or options.export_both_formats:
-                audio_path = os.path.join(output_dir, f"{base_name}.mp3")
+                audio_ext = self._safe_audio_extension(options.audio_output_format)
+                audio_codec = self._audio_codec_for_format(audio_ext)
+                audio_path = os.path.join(output_dir, f"{base_name}.{audio_ext}")
                 
                 # For audio-only export, create optimized MP3 options
                 audio_options = ProcessingOptions(
-                    output_format="mp3",
+                    output_format=audio_ext,
+                    audio_output_format=audio_ext,
+                    compatibility_mode=options.compatibility_mode,
                     codec_copy=False,
                     video_codec=None,
-                    audio_codec="libmp3lame",
+                    audio_codec=audio_codec,
                     audio_channels=options.audio_channels,
                     audio_sample_rate=options.audio_sample_rate,
                     normalize_audio=options.normalize_audio,
                     mp3_quality=options.mp3_quality,
-                    extra_args=["-q:a", str(options.mp3_quality)]  # Variable bitrate quality
+                    extra_args=self._audio_extra_args_for_format(audio_ext, options.mp3_quality)
                 )
                 
                 self.ffmpeg.extract_clip(
@@ -310,6 +316,30 @@ class VideoEngine:
                 error=str(e),
                 processing_time=processing_time
             )
+
+    def _safe_audio_extension(self, value: Optional[str]) -> str:
+        """Normalize requested audio extension to a supported value."""
+        fmt = (value or "mp3").strip().lower()
+        if fmt in {"mp3", "wav", "aac", "flac", "ogg"}:
+            return fmt
+        return "mp3"
+
+    def _audio_codec_for_format(self, audio_ext: str) -> str:
+        """Choose codec expected by the selected audio container."""
+        codec_map = {
+            "mp3": "libmp3lame",
+            "wav": "pcm_s16le",
+            "aac": "aac",
+            "flac": "flac",
+            "ogg": "libvorbis",
+        }
+        return codec_map.get(audio_ext, "libmp3lame")
+
+    def _audio_extra_args_for_format(self, audio_ext: str, mp3_quality: int) -> List[str]:
+        """Apply format-specific ffmpeg args for reliable audio output."""
+        if audio_ext == "mp3":
+            return ["-q:a", str(mp3_quality)]
+        return []
     
     def _sanitize_filename(self, name: str) -> str:
         """Sanitize filename by removing invalid characters"""

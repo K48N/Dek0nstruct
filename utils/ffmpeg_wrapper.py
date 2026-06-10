@@ -5,8 +5,14 @@ import subprocess
 import json
 import os
 import shutil
+import logging
 from typing import Optional, Dict, Any, List
 from pathlib import Path
+
+from config import config
+
+
+logger = logging.getLogger(__name__)
 
 
 class FFmpegWrapper:
@@ -21,6 +27,7 @@ class FFmpegWrapper:
         self.ffmpeg_path = self._find_ffmpeg()
         self.ffprobe_path = self._find_ffprobe()
         self.gpu_available = self._check_gpu_support()
+        self.debug_mode = bool(config.get("app", "debug_mode"))
     
     def _find_ffmpeg(self) -> str:
         """Find FFmpeg executable"""
@@ -87,6 +94,9 @@ class FFmpegWrapper:
             'videotoolbox': False,  # Apple
             'amf': False     # AMD
         }
+
+        if not self.ffmpeg_path:
+            return gpu_support
         
         try:
             result = subprocess.run(
@@ -105,7 +115,7 @@ class FFmpegWrapper:
                 gpu_support['videotoolbox'] = True
             if 'h264_amf' in output:
                 gpu_support['amf'] = True
-        except:
+        except Exception:
             pass
         
         return gpu_support
@@ -218,7 +228,15 @@ class FFmpegWrapper:
             end: End time in seconds
             options: ProcessingOptions instance with encoding settings
         """
+        if options is None:
+            raise ValueError("Processing options are required")
+        if not self.ffmpeg_path:
+            raise RuntimeError("FFmpeg not available")
+
         duration = end - start
+        output_ext = Path(output_path).suffix.lstrip('.').lower()
+        is_audio_only = output_ext in {"mp3", "wav", "aac", "flac", "ogg"} or options.video_codec is None
+        compatibility_mode = bool(getattr(options, "compatibility_mode", True))
         
         cmd = [
             self.ffmpeg_path,
@@ -227,23 +245,34 @@ class FFmpegWrapper:
             '-i', input_path,
             '-t', str(duration),  # Duration
         ]
+
+        if self.debug_mode:
+            cmd.extend(['-loglevel', 'verbose'])
+        else:
+            cmd.extend(['-loglevel', 'error'])
         
         # Video encoding
-        if options.codec_copy:
+        if is_audio_only:
+            cmd.extend(['-vn'])
+        elif options.codec_copy and not compatibility_mode:
             cmd.extend(['-c:v', 'copy'])
         else:
             # Select codec based on GPU support and settings
-            if options.use_gpu:
-                if self.gpu_available['nvenc'] and options.video_codec == 'h264':
+            video_codec_request = options.video_codec or 'h264'
+            if compatibility_mode:
+                video_codec_request = self._compatible_video_codec(output_ext)
+
+            if options.use_gpu and video_codec_request == 'h264' and not compatibility_mode:
+                if self.gpu_available['nvenc']:
                     codec = 'h264_nvenc'
-                elif self.gpu_available['qsv'] and options.video_codec == 'h264':
+                elif self.gpu_available['qsv']:
                     codec = 'h264_qsv'
-                elif self.gpu_available['videotoolbox'] and options.video_codec == 'h264':
+                elif self.gpu_available['videotoolbox']:
                     codec = 'h264_videotoolbox'
                 else:
-                    codec = self.CPU_CODEC_MAP.get(options.video_codec, options.video_codec)
+                    codec = self.CPU_CODEC_MAP.get(video_codec_request, video_codec_request)
             else:
-                codec = self.CPU_CODEC_MAP.get(options.video_codec, options.video_codec)
+                codec = self.CPU_CODEC_MAP.get(video_codec_request, video_codec_request)
             
             cmd.extend(['-c:v', codec])
             
@@ -257,7 +286,9 @@ class FFmpegWrapper:
             if options.video_bitrate:
                 cmd.extend(['-b:v', options.video_bitrate])
             
-            if options.video_pixel_format:
+            if compatibility_mode:
+                cmd.extend(['-pix_fmt', 'yuv420p'])
+            elif options.video_pixel_format:
                 cmd.extend(['-pix_fmt', options.video_pixel_format])
         
             # Resolution settings
@@ -273,10 +304,17 @@ class FFmpegWrapper:
             # FPS settings
             if options.fps:
                 cmd.extend(['-r', str(options.fps)])
+
+            cmd.extend(self._container_compat_args(output_ext))
         
         # Audio encoding
-        if not options.codec_copy:
-            cmd.extend(['-c:a', options.audio_codec])
+        if options.codec_copy and not compatibility_mode and not is_audio_only:
+            cmd.extend(['-c:a', 'copy'])
+        else:
+            audio_codec = options.audio_codec or self._compatible_audio_codec(output_ext)
+            if compatibility_mode:
+                audio_codec = self._compatible_audio_codec(output_ext)
+            cmd.extend(['-c:a', audio_codec])
             
             if options.audio_channels == 'mono':
                 cmd.extend(['-ac', '1'])
@@ -291,8 +329,6 @@ class FFmpegWrapper:
             
             if options.normalize_audio:
                 cmd.extend(['-filter:a', 'loudnorm'])
-        else:
-            cmd.extend(['-c:a', 'copy'])
         
         # Metadata
         if options.metadata:
@@ -310,49 +346,118 @@ class FFmpegWrapper:
             cmd.extend(options.extra_args)
         
         cmd.append(output_path)
+
+        if self.debug_mode:
+            logger.debug("FFmpeg command: %s", " ".join(str(part) for part in cmd))
         
         try:
-            subprocess.run(cmd, check=True, capture_output=True, timeout=600)
+            subprocess.run(cmd, check=True, capture_output=True, text=True, timeout=600)
         except subprocess.TimeoutExpired:
             raise RuntimeError(f"Extraction timed out (600s limit)")
         except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"FFmpeg failed: {e.stderr.decode()}")
+            stderr = e.stderr if isinstance(e.stderr, str) else (e.stderr or b"").decode(errors="replace")
+            raise RuntimeError(f"FFmpeg failed: {stderr}")
+
+    def _compatible_video_codec(self, output_ext: str) -> str:
+        """Return a broadly supported video codec for the selected container."""
+        codec_map = {
+            'webm': 'libvpx-vp9',
+            'avi': 'mpeg4',
+            'mkv': 'h264',
+            'mov': 'h264',
+            'mp4': 'h264',
+        }
+        return codec_map.get(output_ext, 'h264')
+
+    def _compatible_audio_codec(self, output_ext: str) -> str:
+        """Return a broadly supported audio codec for the selected container."""
+        codec_map = {
+            'mp3': 'libmp3lame',
+            'wav': 'pcm_s16le',
+            'aac': 'aac',
+            'flac': 'flac',
+            'ogg': 'libvorbis',
+            'webm': 'libopus',
+            'avi': 'libmp3lame',
+            'mkv': 'aac',
+            'mov': 'aac',
+            'mp4': 'aac',
+        }
+        return codec_map.get(output_ext, 'aac')
+
+    def _container_compat_args(self, output_ext: str) -> List[str]:
+        """Container-level flags that improve compatibility across players/devices."""
+        if output_ext == 'mp4':
+            return ['-movflags', '+faststart', '-profile:v', 'high', '-level', '4.1']
+        if output_ext == 'mov':
+            return ['-movflags', '+faststart', '-tag:v', 'avc1']
+        return []
     
-    def extract_audio(
-        self,
-        input_path: str,
-        output_path: str,
-        start: float,
-        end: float,
-        audio_channels: Optional[str] = None,
-        quality: int = 2
-    ) -> None:
-        """Extract audio as MP3"""
-        duration = end - start
-        
-        cmd = [
-            self.ffmpeg_path,
-            '-y',
-            '-ss', str(start),
-            '-i', input_path,
-            '-t', str(duration),
-            '-vn',  # No video
-            '-acodec', 'libmp3lame',
-            '-q:a', str(quality)  # 0-9, lower is better
-        ]
-        
-        if audio_channels == 'mono':
-            cmd.extend(['-ac', '1'])
-        elif audio_channels == 'stereo':
-            cmd.extend(['-ac', '2'])
-        
-        cmd.append(output_path)
-        
+    def is_preview_compatible(self, path: str) -> bool:
+        """Return True if the file is already H264+AAC in an MP4/MOV container."""
         try:
-            subprocess.run(cmd, check=True, capture_output=True, timeout=300)
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Audio extraction failed: {e.stderr.decode()}")
-    
+            info = self.get_video_info(path)
+        except Exception:
+            return False
+        fmt = info.get('format', '')
+        if not any(f in fmt for f in ('mp4', 'mov', 'isom', 'quicktime')):
+            return False
+        v_ok = any(
+            s['type'] == 'video' and s.get('codec') in ('h264', 'avc')
+            for s in info.get('streams', [])
+        )
+        a_streams = [s for s in info.get('streams', []) if s['type'] == 'audio']
+        a_ok = (not a_streams) or any(
+            s.get('codec') in ('aac', 'mp3', 'mp4a') for s in a_streams
+        )
+        return v_ok and a_ok
+
+    def transcode_for_preview(self, src: str, dst: str,
+                              duration: float = 0.0,
+                              progress_cb=None) -> bool:
+        """Transcode any video to H264/AAC MP4 so QMediaPlayer can play it.
+        progress_cb(fraction: float, eta_seconds: float) is called on each update.
+        """
+        import time
+        if not self.ffmpeg_path:
+            return False
+        cmd = [
+            self.ffmpeg_path, '-y',
+            '-progress', 'pipe:1', '-nostats',
+            '-i', src,
+            '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '28',
+            '-c:a', 'aac', '-b:a', '128k',
+            '-movflags', '+faststart',
+            dst,
+        ]
+        try:
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                bufsize=1,
+            )
+            start = time.time()
+            out_us = 0
+            total_us = duration * 1_000_000 if duration > 0 else 0
+            for line in proc.stdout:
+                line = line.strip()
+                if line.startswith('out_time_us='):
+                    try:
+                        out_us = int(line.split('=', 1)[1])
+                    except ValueError:
+                        pass
+                    if progress_cb and total_us > 0 and out_us > 0:
+                        fraction = min(out_us / total_us, 1.0)
+                        elapsed = time.time() - start
+                        eta = (elapsed / fraction) * (1.0 - fraction) if fraction > 0 else 0
+                        progress_cb(fraction, eta)
+            proc.wait(timeout=300)
+            return proc.returncode == 0
+        except Exception:
+            return False
+
     def generate_thumbnail(
         self,
         video_path: str,
@@ -362,6 +467,9 @@ class FFmpegWrapper:
         height: int = 180
     ) -> bool:
         """Generate thumbnail at specific timestamp"""
+        if not self.ffmpeg_path:
+            return False
+
         cmd = [
             self.ffmpeg_path,
             '-y',
@@ -376,7 +484,7 @@ class FFmpegWrapper:
         try:
             subprocess.run(cmd, check=True, capture_output=True, timeout=10)
             return True
-        except:
+        except Exception:
             return False
     
     def generate_waveform(
@@ -387,6 +495,9 @@ class FFmpegWrapper:
         height: int = 100
     ) -> bool:
         """Generate waveform visualization"""
+        if not self.ffmpeg_path:
+            return False
+
         cmd = [
             self.ffmpeg_path,
             '-i', video_path,
@@ -399,5 +510,5 @@ class FFmpegWrapper:
         try:
             subprocess.run(cmd, check=True, capture_output=True, timeout=30)
             return True
-        except:
+        except Exception:
             return False
