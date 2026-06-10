@@ -3,7 +3,14 @@
 # Core UI
 PyQt5>=5.15.9
 
-# Image processing (thumbnail display)
+# Video preview (requires VLC installed on the system)
+# Download VLC from https://www.videolan.org/vlc/
+python-vlc>=3.0.20
+
+# Video processing / thumbnails
+opencv-python>=4.8.0
+
+# Image processing
 pillow>=10.0.0
 
 # Testing
